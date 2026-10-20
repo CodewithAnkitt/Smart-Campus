@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
-
+const complaintRoutes = require("./routes/complaintRoutes");
 dotenv.config();
 
 const app = express();
@@ -15,7 +15,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
-
+app.use("/api/complaints", complaintRoutes);
 // Health check route
 app.get("/api/health", (req, res) => {
   res.status(200).json({
