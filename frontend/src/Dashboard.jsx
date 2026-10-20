@@ -1,4 +1,4 @@
-
+import { Activity } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
@@ -24,9 +24,8 @@ const categoryColors = {
 const menuItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { label: "Submit Complaint", icon: FilePlus2, href: "/complaints" },
-  { label: "My Complaints", icon: ClipboardList, href: "/complaints" },
-  { label: "Campus Resources", icon: BookOpen, href: "/#features" },
-  { label: "Announcements", icon: Megaphone, href: "/#features" },
+ { label: "My Complaints", icon: ClipboardList, href: "/my-complaints" },
+ { label: "Complaint Tracking", path: "/complaint-tracking", icon: Activity },
   { label: "Feedback", icon: MessageSquare, href: "/#features" },
 ];
 
