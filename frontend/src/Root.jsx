@@ -6,6 +6,7 @@ import Complaints from "./Complaints";
 import Dashboard from "./Dashboard";
 import MyComplaints from "./MyComplaints";
 import Feedback from "./Feedback";
+import Profile from "./Profile";
 export default function Root() {
   return (
     <BrowserRouter>
@@ -18,6 +19,7 @@ export default function Root() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/my-complaints" element={<MyComplaints />} />
         <Route path="/feedback" element={<Feedback />} />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
     </BrowserRouter>
   );

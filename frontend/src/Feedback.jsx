@@ -174,7 +174,7 @@ export default function Feedback() {
     { label: "Submit Complaint", path: "/complaints", icon: PencilLine },
     { label: "My Complaints", path: "/my-complaints", icon: ClipboardList },
     { label: "Feedback", path: "/feedback", icon: Star },
-    { label: "Profile / Sign in", path: "/login", icon: UserRound },
+    { label: "Profile ", path: "/profile", icon: UserRound },
   ];
 
   return (

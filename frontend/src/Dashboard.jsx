@@ -26,6 +26,7 @@ const menuItems = [
   { label: "Submit Complaint", icon: FilePlus2, href: "/complaints" },
  { label: "My Complaints", icon: ClipboardList, href: "/my-complaints" },
   { label: "Feedback", icon: MessageSquare, href: "/feedback" },
+   { label: "Profile ", href: "/profile", icon: UserRound },
 ];
 
 function getDateLabel(date) {
@@ -250,14 +251,7 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
               <span>{label}</span>
             </a>
           ))}
-          <a
-            href="/login"
-            className="sc-nav-link"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <UserRound size={20} />
-            <span>Profile / Sign in</span>
-          </a>
+          
         </nav>
 
         <div className="sc-help-card">

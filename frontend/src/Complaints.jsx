@@ -26,7 +26,7 @@ const navItems = [
   { label: "My Complaints", href: "/my-complaints", icon: ClipboardList },
 
   { label: "Feedback", href: "/feedback", icon: MessageSquare },
-  { label: "Profile / Sign in", href: "/login", icon: UserRound },
+  { label: "Profile ", href: "/profile", icon: UserRound },
 ];
 
 const categories = [
