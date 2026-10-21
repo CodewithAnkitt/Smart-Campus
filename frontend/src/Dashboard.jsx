@@ -25,8 +25,7 @@ const menuItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { label: "Submit Complaint", icon: FilePlus2, href: "/complaints" },
  { label: "My Complaints", icon: ClipboardList, href: "/my-complaints" },
- { label: "Complaint Tracking", path: "/complaint-tracking", icon: Activity },
-  { label: "Feedback", icon: MessageSquare, href: "/#features" },
+  { label: "Feedback", icon: MessageSquare, href: "/feedback" },
 ];
 
 function getDateLabel(date) {

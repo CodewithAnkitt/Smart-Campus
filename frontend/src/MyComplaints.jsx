@@ -1,618 +1,601 @@
-import { Activity } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { Link, useNavigate } from "react-router-dom";
 import {
-  GraduationCap, Menu, X, Search, Bell, LayoutDashboard,
-  FilePlus2, ClipboardList, BookOpen, Megaphone, MessageSquare,
-  UserRound, Headphones, RefreshCw, Eye, Clock3, CheckCircle2,
-  Settings2, CalendarDays, MapPin, AlertCircle, SlidersHorizontal,
-  Droplets, Wifi, Fan, Trash2, Monitor, ChevronLeft, ChevronRight,
-  Sparkles, Building2
+  Activity, Bell, CalendarDays, Check, CheckCircle2, ChevronDown,
+  ChevronRight, ClipboardList, Clock3, FileText, Flag, House,
+  LayoutDashboard, Lightbulb, LoaderCircle, LogOut, MapPin, Menu,
+  MessageSquare, RefreshCw, Search, Settings, ShieldCheck, Star,
+  Trash2, UserRound, Wifi, Zap, Droplets, Armchair, X
 } from "lucide-react";
 import "./MyComplaints.css";
 
-const API_URL = "http://localhost:5000/api/complaints";
+const API = "http://localhost:5000/api/complaints";
 
-const navigation = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-  { label: "Submit Complaint", icon: FilePlus2, href: "/complaints" },
-  { label: "My Complaints", icon: ClipboardList, href: "/my-complaints" },
-  { label: "Complaint Tracking", path: "/complaint-tracking", icon: Activity },
-  { label: "Feedback", icon: MessageSquare, href: "/feedback" },
-  { label: "Profile / Sign in", icon: UserRound, href: "/login" },
-];
+const normaliseStatus = (status) => {
+  const value = String(status || "Pending").trim().toLowerCase();
+  if (value.includes("progress") || value === "in progress") return "In Progress";
+  if (value.includes("resolv") || value.includes("complete")) return "Resolved";
+  if (value.includes("clos")) return "Closed";
+  if (value.includes("reject")) return "Rejected";
+  if (value.includes("pending") || value.includes("submit")) return "Pending";
+  return status || "Pending";
+};
 
-const categories = [
-  "All Categories", "Electricity", "Water", "Cleanliness",
-  "Internet", "Classroom", "Other"
-];
+const getId = (complaint) => complaint?._id || complaint?.id;
 
-const statuses = ["All Statuses", "Pending", "In Progress", "Resolved"];
+const getDate = (date) => {
+  if (!date) return "Date unavailable";
+  const parsed = new Date(date);
+  return Number.isNaN(parsed.getTime())
+    ? "Date unavailable"
+    : parsed.toLocaleDateString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric"
+      });
+};
 
-function formatDate(value) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+const getDateTime = (date) => {
+  if (!date) return "Not available";
+  const parsed = new Date(date);
+  return Number.isNaN(parsed.getTime())
+    ? "Not available"
+    : parsed.toLocaleString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+      });
+};
 
-  return date.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function getCategoryIcon(category) {
-  switch (category) {
-    case "Water": return Droplets;
-    case "Internet": return Wifi;
-    case "Electricity": return Fan;
-    case "Cleanliness": return Trash2;
-    case "Classroom": return Monitor;
-    default: return ClipboardList;
-  }
-}
-
-function StatusBadge({ status = "Pending" }) {
-  const Icon =
-    status === "Resolved" ? CheckCircle2 :
-    status === "In Progress" ? Settings2 : Clock3;
-
-  const className = status.toLowerCase().replace(/\s+/g, "-");
-
-  return (
-    <span className={`mc-status mc-status-${className}`}>
-      <Icon size={13} />
-      {status}
-    </span>
-  );
-}
-
-function CampusIllustration() {
-  return (
-    <div className="mc-illustration" aria-hidden="true">
-      <div className="mc-sun" />
-      <div className="mc-cloud mc-cloud-a" />
-      <div className="mc-cloud mc-cloud-b" />
-      <div className="mc-hill mc-hill-back" />
-      <div className="mc-hill mc-hill-front" />
-      <div className="mc-campus-building">
-        <div className="mc-building-roof" />
-        <div className="mc-building-top">
-          <span>SMARTCAMPUS</span>
-        </div>
-        <div className="mc-building-columns">
-          {Array.from({ length: 5 }, (_, i) => (
-            <div className="mc-column" key={i}>
-              <span />
-              <span />
-            </div>
-          ))}
-        </div>
-        <div className="mc-building-entrance" />
-      </div>
-      <div className="mc-tree mc-tree-left"><i /></div>
-      <div className="mc-tree mc-tree-right"><i /></div>
-      <div className="mc-student-shape mc-student-one" />
-      <div className="mc-student-shape mc-student-two" />
-    </div>
-  );
-}
+const categoryIcon = (category = "") => {
+  const value = category.toLowerCase();
+  if (value.includes("wifi") || value.includes("network") || value.includes("internet")) return Wifi;
+  if (value.includes("electric") || value.includes("power")) return Zap;
+  if (value.includes("water") || value.includes("plumb")) return Droplets;
+  if (value.includes("furniture") || value.includes("infrastructure")) return Armchair;
+  return FileText;
+};
 
 export default function MyComplaints() {
+  const navigate = useNavigate();
+
   const [complaints, setComplaints] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
-  const [selectedComplaint, setSelectedComplaint] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("Tracking");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [page, setPage] = useState(1);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [feedback, setFeedback] = useState("");
 
-  const pageSize = 5;
-
-  async function fetchComplaints() {
-    setLoading(true);
+  const loadComplaints = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     setError("");
 
     try {
-      const response = await axios.get(API_URL);
-      setComplaints(response.data.complaints || []);
-    } catch {
-      setError(
-        "Could not load complaints. Check that your backend and MongoDB are running."
-      );
+      const response = await axios.get(API);
+      const data = response.data;
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.complaints)
+          ? data.complaints
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+
+      setComplaints(list);
+
+      setSelectedId((current) => {
+        if (current && list.some((item) => String(getId(item)) === String(current))) {
+          return current;
+        }
+        return list.length ? getId(list[0]) : null;
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not load complaints. Check that your backend is running.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }
-
-  useEffect(() => {
-    fetchComplaints();
   }, []);
 
-  const counts = useMemo(() => ({
-    total: complaints.length,
-    pending: complaints.filter((c) => c.status === "Pending").length,
-    progress: complaints.filter((c) => c.status === "In Progress").length,
-    resolved: complaints.filter((c) => c.status === "Resolved").length,
-  }), [complaints]);
+  useEffect(() => {
+    loadComplaints();
+  }, [loadComplaints]);
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
+  const selected = complaints.find(
+    (item) => String(getId(item)) === String(selectedId)
+  );
+
+  const selectedStatus = normaliseStatus(selected?.status);
+  const canDelete = Boolean(selected) && selectedStatus === "Pending";
+
+  const categories = useMemo(
+    () => [...new Set(complaints.map((item) => item.category).filter(Boolean))],
+    [complaints]
+  );
+
+  const filteredComplaints = useMemo(() => {
+    const term = search.toLowerCase().trim();
 
     return complaints.filter((item) => {
-      const matchesSearch = !term || [
-        item.title,
-        item.description,
-        item.location,
-        item.category,
-        item._id,
-      ].some((value) => String(value || "").toLowerCase().includes(term));
+      const status = normaliseStatus(item.status);
+      const text = [
+        item.title, item.description, item.category,
+        item.location, getId(item)
+      ].filter(Boolean).join(" ").toLowerCase();
 
-      const matchesStatus =
-        statusFilter === "All Statuses" || item.status === statusFilter;
-
-      const matchesCategory =
-        categoryFilter === "All Categories" || item.category === categoryFilter;
-
-      return matchesSearch && matchesStatus && matchesCategory;
+      return (
+        (!term || text.includes(term)) &&
+        (statusFilter === "All Statuses" || status === statusFilter) &&
+        (categoryFilter === "All Categories" || item.category === categoryFilter)
+      );
     });
   }, [complaints, search, statusFilter, categoryFilter]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, statusFilter, categoryFilter]);
+  const counts = useMemo(() => ({
+    total: complaints.length,
+    pending: complaints.filter((c) => normaliseStatus(c.status) === "Pending").length,
+    progress: complaints.filter((c) => normaliseStatus(c.status) === "In Progress").length,
+    resolved: complaints.filter((c) => normaliseStatus(c.status) === "Resolved").length
+  }), [complaints]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const visibleComplaints = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const refresh = () => {
+    setRefreshing(true);
+    loadComplaints(false);
+  };
 
-  function resetFilters() {
-    setSearch("");
-    setStatusFilter("All Statuses");
-    setCategoryFilter("All Categories");
-    setPage(1);
-  }
+  const deleteComplaint = async () => {
+    if (!selected) return;
 
-  function toggleSidebar() {
-    if (window.matchMedia("(max-width: 760px)").matches) {
-      setSidebarOpen((open) => !open);
-    } else {
-      setSidebarCollapsed((collapsed) => !collapsed);
+    // Frontend guard: deletion is allowed only for Pending complaints.
+    if (normaliseStatus(selected.status) !== "Pending") {
+      setNotice(`This complaint is currently "${normaliseStatus(selected.status)}". Only Pending complaints can be deleted.`);
+      return;
     }
-  }
+
+    const confirmed = window.confirm(
+      `Delete "${selected.title || "this complaint"}"? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setNotice("");
+
+    try {
+      // The backend must enforce the same Pending-only rule.
+      await axios.delete(`${API}/${getId(selected)}`);
+
+      setNotice("Complaint deleted successfully.");
+      const remaining = complaints.filter(
+        (item) => String(getId(item)) !== String(getId(selected))
+      );
+      setComplaints(remaining);
+      setSelectedId(remaining.length ? getId(remaining[0]) : null);
+    } catch (err) {
+      const message = err.response?.data?.message ||
+        "Could not delete the complaint. Make sure the backend DELETE endpoint is configured.";
+      setNotice(message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const submitFeedback = () => {
+    if (!feedback.trim()) {
+      setNotice("Please enter your feedback first.");
+      return;
+    }
+
+    // This is a UI-only action until a feedback API is connected.
+    setNotice("Feedback form is ready, but a backend feedback endpoint must be connected to save it.");
+  };
+
+  const StatusBadge = ({ status }) => (
+    <span className={`mc-status mc-status-${normaliseStatus(status).toLowerCase().replace(/\s+/g, "-")}`}>
+      <span className="mc-status-dot" />
+      {normaliseStatus(status)}
+    </span>
+  );
+
+  const navItems = [
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Submit Complaint", path: "/complaints", icon: FileText },
+    { label: "My Complaints", path: "/my-complaints", icon: ClipboardList },
+    { label: "Feedback", path: "/feedback", icon: Star },
+    { label: "Profile / Sign in", path: "/login", icon: UserRound }
+  ];
+
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    setNotice("");
+  };
 
   return (
-    <div className={`mc-app ${sidebarCollapsed ? "mc-collapsed" : ""}`}>
-      {sidebarOpen && (
+    <div className={`mc-app ${sidebarCollapsed ? "mc-sidebar-collapsed" : ""}`}>
+      {mobileSidebarOpen && (
         <button
-          className="mc-overlay"
+          className="mc-mobile-overlay"
           aria-label="Close navigation"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => setMobileSidebarOpen(false)}
         />
       )}
 
-      <aside className={`mc-sidebar ${sidebarOpen ? "mc-sidebar-open" : ""}`}>
-        <a href="/dashboard" className="mc-brand">
-          <span className="mc-brand-icon"><GraduationCap size={28} /></span>
-          <span className="mc-brand-copy">
+      <aside className={`mc-sidebar ${mobileSidebarOpen ? "mc-mobile-open" : ""}`}>
+        <div className="mc-brand">
+          <div className="mc-brand-icon"><ShieldCheck size={30} /></div>
+          <div className="mc-brand-copy">
             <strong>SmartCampus</strong>
-            <small>Campus Complaint System</small>
-          </span>
+            <span>Complaint Management System</span>
+          </div>
           <button
-            type="button"
-            className="mc-close-menu"
-            aria-label="Close navigation"
-            onClick={(event) => {
-              event.preventDefault();
-              setSidebarOpen(false);
-            }}
+            className="mc-icon-button mc-sidebar-close"
+            aria-label="Close sidebar"
+            onClick={() => setMobileSidebarOpen(false)}
           >
-            <X size={20} />
+            <X size={19} />
           </button>
-        </a>
+        </div>
 
-        <nav className="mc-nav" aria-label="Main navigation">
-          {navigation.map(({ label, icon: Icon, href }) => (
-            <a
+        <nav className="mc-navigation">
+          {navItems.map(({ label, path, icon: Icon }) => (
+            <Link
               key={label}
-              href={href}
-              title={label}
-              className={`mc-nav-link ${label === "My Complaints" ? "active" : ""}`}
-              onClick={() => setSidebarOpen(false)}
+              to={path}
+              title={sidebarCollapsed ? label : undefined}
+              className={`mc-nav-item ${label === "My Complaints" ? "mc-nav-active" : ""}`}
+              onClick={() => setMobileSidebarOpen(false)}
             >
-              <Icon size={19} />
+              <Icon size={21} />
               <span>{label}</span>
-            </a>
+            </Link>
           ))}
         </nav>
 
-        <div className="mc-help-card">
-          <span className="mc-help-icon"><Headphones size={25} /></span>
-          <h3>Need Help?</h3>
-          <p>Have a question? Contact campus support.</p>
-          <a href="/feedback">Contact Support <span>→</span></a>
+        <div className="mc-sidebar-art">
+          <div className="mc-campus-orb" />
+          <House size={74} strokeWidth={1.2} />
+          <div className="mc-art-building">
+            <span /><span /><span /><span />
+          </div>
+        </div>
+
+        <div className="mc-sidebar-footer">
+          <span>Submitted by Ankit Kumar</span>
+          <small>All rights reserved by SmartCampus</small>
         </div>
       </aside>
 
       <main className="mc-main">
         <header className="mc-topbar">
-          <button
-            className="mc-menu-button"
-            type="button"
-            aria-label="Toggle navigation"
-            onClick={toggleSidebar}
-          >
-            <Menu size={23} />
-          </button>
-
-          <label className="mc-global-search">
-            <Search size={18} />
-            <input
-              placeholder="Search complaints, categories..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              aria-label="Search complaints"
-            />
-          </label>
-
-          <div className="mc-topbar-right">
+          <div className="mc-topbar-left">
             <button
-              type="button"
-              className="mc-bell"
-              title="Refresh complaints"
-              aria-label="Refresh complaints"
-              onClick={fetchComplaints}
+              className="mc-icon-button mc-menu-toggle"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              onClick={() => setSidebarCollapsed((value) => !value)}
             >
-              <Bell size={20} />
+              <Menu size={22} />
+            </button>
+
+            <button
+              className="mc-icon-button mc-mobile-menu"
+              aria-label="Open navigation"
+              onClick={() => setMobileSidebarOpen(true)}
+            >
+              <Menu size={22} />
+            </button>
+
+            <div className="mc-global-search">
+              <Search size={19} />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search your complaints, categories, or locations..."
+                aria-label="Search your complaints"
+              />
+            </div>
+          </div>
+
+          <div className="mc-user-area">
+            <button className="mc-icon-button mc-notification" aria-label="Notifications">
+              <Bell size={21} />
               <i />
             </button>
-            <div className="mc-top-profile">
-              <span className="mc-avatar">S</span>
-              <span className="mc-profile-copy">
-                <strong>Student Portal</strong>
-                <small>SmartCampus user</small>
-              </span>
+            <div className="mc-user-avatar">AK</div>
+            <div className="mc-user-copy">
+              <strong>Ankit Kumar</strong>
+              <span>Student</span>
             </div>
+            <ChevronDown size={16} />
           </div>
         </header>
 
         <div className="mc-content">
           <section className="mc-hero">
             <div className="mc-hero-copy">
-              <span className="mc-eyebrow">MY COMPLAINTS</span>
-              <h1>Track Your Complaints</h1>
-              <p>
-                Stay updated on the issues you've reported and help us build
-                a better campus together.
-              </p>
+              <span className="mc-eyebrow">STUDENT SUPPORT PORTAL</span>
+              <h1>My Complaints</h1>
+              <p>View, track, and manage all your submitted complaints.</p>
             </div>
-            <CampusIllustration />
-            <div className="mc-hero-quote">
-              <span>“</span>
-              <strong>A cleaner, safer and better campus starts with you.</strong>
+            <div className="mc-hero-message">
+              <span>We're here</span>
+              <strong>to resolve your concerns</strong>
+            </div>
+            <div className="mc-hero-illustration" aria-hidden="true">
+              <div className="mc-hero-chat"><MessageSquare size={18} /></div>
+              <ClipboardList size={84} strokeWidth={1.25} />
+              <div className="mc-hero-person"><UserRound size={48} /></div>
             </div>
           </section>
 
           {error && (
-            <div className="mc-error" role="alert">
-              <AlertCircle size={18} />
-              <span>{error}</span>
-              <button type="button" onClick={fetchComplaints}>Try again</button>
+            <div className="mc-alert mc-alert-error">
+              {error}
+              <button onClick={() => loadComplaints()}><RefreshCw size={15} /> Retry</button>
             </div>
           )}
 
-          <section className="mc-summary-grid">
-            <article className="mc-summary-card mc-total">
-              <span className="mc-summary-icon"><ClipboardList size={23} /></span>
-              <div><p>Total Complaints</p><strong>{loading ? "—" : counts.total}</strong><small>All your reported issues</small></div>
-              <span className="mc-card-decoration" />
-            </article>
-            <article className="mc-summary-card mc-pending">
-              <span className="mc-summary-icon"><Clock3 size={23} /></span>
-              <div><p>Pending</p><strong>{loading ? "—" : counts.pending}</strong><small>Awaiting attention</small></div>
-              <span className="mc-card-decoration" />
-            </article>
-            <article className="mc-summary-card mc-progress">
-              <span className="mc-summary-icon"><Settings2 size={23} /></span>
-              <div><p>In Progress</p><strong>{loading ? "—" : counts.progress}</strong><small>Currently being handled</small></div>
-              <span className="mc-card-decoration" />
-            </article>
-            <article className="mc-summary-card mc-resolved">
-              <span className="mc-summary-icon"><CheckCircle2 size={23} /></span>
-              <div><p>Resolved</p><strong>{loading ? "—" : counts.resolved}</strong><small>Successfully completed</small></div>
-              <span className="mc-card-decoration" />
-            </article>
+          {notice && (
+            <div className="mc-alert mc-alert-info" role="status">
+              <span>{notice}</span>
+              <button aria-label="Dismiss message" onClick={() => setNotice("")}><X size={16} /></button>
+            </div>
+          )}
+
+          <section className="mc-stat-grid">
+            <div className="mc-stat-card">
+              <div className="mc-stat-icon mc-purple"><FileText size={25} /></div>
+              <div><span>Total Complaints</span><strong>{counts.total}</strong><small><Activity size={14} /> All submissions</small></div>
+            </div>
+            <div className="mc-stat-card">
+              <div className="mc-stat-icon mc-orange"><Clock3 size={25} /></div>
+              <div><span>Pending</span><strong>{counts.pending}</strong><small>Needs your attention</small></div>
+            </div>
+            <div className="mc-stat-card">
+              <div className="mc-stat-icon mc-blue"><Settings size={25} /></div>
+              <div><span>In Progress</span><strong>{counts.progress}</strong><small>Being resolved</small></div>
+            </div>
+            <div className="mc-stat-card">
+              <div className="mc-stat-icon mc-green"><CheckCircle2 size={25} /></div>
+              <div><span>Resolved</span><strong>{counts.resolved}</strong><small>Completed</small></div>
+            </div>
           </section>
 
           <section className="mc-workspace">
             <div className="mc-list-panel">
-              <div className="mc-panel-heading">
-                <div className="mc-panel-heading-icon"><ClipboardList size={21} /></div>
-                <div className="mc-heading-text">
-                  <h2>Your Complaints</h2>
-                  <p>View, search and track the status of your submitted complaints.</p>
+              <div className="mc-list-heading">
+                <div>
+                  <h2><ClipboardList size={20} /> Your submissions</h2>
+                  <p>Select a complaint to view its tracking details.</p>
                 </div>
-                <a className="mc-primary-button" href="/complaints">
-                  <FilePlus2 size={16} /> Submit New Complaint
-                </a>
+                <span className="mc-count-pill">{filteredComplaints.length} found</span>
               </div>
 
               <div className="mc-filters">
-                <label className="mc-search">
-                  <Search size={18} />
+                <label className="mc-list-search">
+                  <Search size={17} />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search by title, location or ID..."
-                    aria-label="Search by title, location or ID"
+                    placeholder="Search complaints..."
                   />
-                  {search && (
-                    <button type="button" onClick={() => setSearch("")} aria-label="Clear search">
-                      <X size={15} />
-                    </button>
-                  )}
                 </label>
-
-                <select
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  aria-label="Filter by status"
-                >
-                  {statuses.map((status) => <option key={status}>{status}</option>)}
-                </select>
-
-                <select
-                  value={categoryFilter}
-                  onChange={(event) => setCategoryFilter(event.target.value)}
-                  aria-label="Filter by category"
-                >
-                  {categories.map((category) => <option key={category}>{category}</option>)}
-                </select>
-
-                <button className="mc-reset-button" type="button" onClick={resetFilters}>
-                  <RefreshCw size={15} /> Reset
-                </button>
+                <label className="mc-select-wrap">
+                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                    <option>All Statuses</option>
+                    <option>Pending</option>
+                    <option>In Progress</option>
+                    <option>Resolved</option>
+                    <option>Closed</option>
+                    <option>Rejected</option>
+                  </select>
+                  <ChevronDown size={15} />
+                </label>
+                <label className="mc-select-wrap">
+                  <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+                    <option>All Categories</option>
+                    {categories.map((category) => <option key={category}>{category}</option>)}
+                  </select>
+                  <ChevronDown size={15} />
+                </label>
               </div>
 
-              <div className="mc-results-label">
-                Showing <strong>{loading ? "—" : visibleComplaints.length}</strong> of{" "}
-                <strong>{loading ? "—" : filtered.length}</strong> complaints
-              </div>
-
-              {loading ? (
-                <div className="mc-empty-state">
-                  <RefreshCw className="mc-spin" size={25} />
-                  <p>Loading complaints…</p>
-                </div>
-              ) : visibleComplaints.length === 0 ? (
-                <div className="mc-empty-state">
-                  <ClipboardList size={38} />
-                  <h3>{complaints.length ? "No matching complaints" : "No complaints yet"}</h3>
-                  <p>
-                    {complaints.length
-                      ? "Try changing your search or filters."
-                      : "Your submitted complaints will appear here."}
-                  </p>
-                  {complaints.length ? (
-                    <button className="mc-reset-button" onClick={resetFilters} type="button">
-                      Clear filters
+              <div className="mc-complaint-list">
+                {loading ? (
+                  <div className="mc-empty-state"><LoaderCircle className="mc-spin" size={28} /><span>Loading complaints...</span></div>
+                ) : filteredComplaints.length === 0 ? (
+                  <div className="mc-empty-state">
+                    <ClipboardList size={35} />
+                    <strong>No complaints found</strong>
+                    <span>Try changing your search or filters.</span>
+                    <Link to="/complaints" className="mc-primary-button">Submit a complaint</Link>
+                  </div>
+                ) : filteredComplaints.map((complaint) => {
+                  const id = getId(complaint);
+                  const Icon = categoryIcon(complaint.category);
+                  const active = String(id) === String(selectedId);
+                  return (
+                    <button
+                      key={id}
+                      className={`mc-complaint-row ${active ? "mc-complaint-selected" : ""}`}
+                      onClick={() => {
+                        setSelectedId(id);
+                        setActiveTab("Tracking");
+                        setNotice("");
+                      }}
+                    >
+                      <div className="mc-row-icon"><Icon size={23} /></div>
+                      <div className="mc-row-copy">
+                        <strong>{complaint.title || "Untitled complaint"}</strong>
+                        <span>{complaint.category || "General"} <i /> {complaint.location || "Location not provided"}</span>
+                        <small>#{String(id || "").slice(-12).toUpperCase()}</small>
+                      </div>
+                      <div className="mc-row-meta">
+                        <StatusBadge status={complaint.status} />
+                        <span>{getDate(complaint.createdAt || complaint.created_at || complaint.date)}</span>
+                      </div>
+                      <ChevronRight className="mc-row-chevron" size={19} />
                     </button>
-                  ) : (
-                    <a href="/complaints" className="mc-primary-button">
-                      <FilePlus2 size={16} /> Submit a Complaint
-                    </a>
-                  )}
-                </div>
-              ) : (
-                <div className="mc-table-wrap">
-                  <table className="mc-table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Complaint Details</th>
-                        <th>Category</th>
-                        <th>Location</th>
-                        <th>Submitted On</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleComplaints.map((item, index) => {
-                        const CategoryIcon = getCategoryIcon(item.category);
-                        return (
-                          <tr key={item._id}>
-                            <td>{(page - 1) * pageSize + index + 1}</td>
-                            <td>
-                              <div className="mc-complaint-cell">
-                                <span className="mc-complaint-icon"><CategoryIcon size={18} /></span>
-                                <span>
-                                  <strong>{item.title}</strong>
-                                  <small>{String(item.description || "No description").slice(0, 35)}{String(item.description || "").length > 35 ? "…" : ""}</small>
-                                </span>
-                              </div>
-                            </td>
-                            <td><span className="mc-category">{item.category}</span></td>
-                            <td className="mc-location"><MapPin size={13} /> {item.location}</td>
-                            <td className="mc-date">{formatDate(item.createdAt)}</td>
-                            <td><StatusBadge status={item.status} /></td>
-                            <td>
-                              <button
-                                type="button"
-                                className="mc-view-button"
-                                onClick={() => setSelectedComplaint(item)}
-                              >
-                                <Eye size={15} /> View
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              <div className="mc-pagination">
-                <span>
-                  Showing {filtered.length ? (page - 1) * pageSize + 1 : 0} to{" "}
-                  {Math.min(page * pageSize, filtered.length)} of {filtered.length} complaints
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    aria-label="Previous page"
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    <ChevronLeft size={17} />
-                  </button>
-                  {Array.from({ length: pageCount }, (_, i) => i + 1)
-                    .slice(Math.max(0, page - 2), Math.max(3, page + 1))
-                    .map((number) => (
-                      <button
-                        key={number}
-                        type="button"
-                        className={page === number ? "active" : ""}
-                        onClick={() => setPage(number)}
-                      >
-                        {number}
-                      </button>
-                    ))}
-                  <button
-                    type="button"
-                    aria-label="Next page"
-                    disabled={page >= pageCount}
-                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                  >
-                    <ChevronRight size={17} />
-                  </button>
-                </div>
+                  );
+                })}
               </div>
             </div>
 
-            <aside className="mc-detail-panel">
-              <div className="mc-detail-heading">
-                <h2>Complaint Details</h2>
-                {selectedComplaint && (
-                  <button type="button" aria-label="Close details" onClick={() => setSelectedComplaint(null)}>
-                    <X size={19} />
-                  </button>
-                )}
-              </div>
-
-              {!selectedComplaint ? (
-                <div className="mc-detail-placeholder">
-                  <span><Eye size={25} /></span>
-                  <h3>Select a complaint</h3>
-                  <p>Choose “View” on a complaint to see its full details and progress.</p>
+            <div className="mc-detail-panel">
+              {!selected ? (
+                <div className="mc-detail-empty">
+                  <ClipboardList size={42} />
+                  <h2>Select a complaint</h2>
+                  <p>Choose one from the list to see its status and details.</p>
                 </div>
               ) : (
-                <ComplaintDetails
-                  complaint={selectedComplaint}
-                  onClose={() => setSelectedComplaint(null)}
-                />
+                <>
+                  <div className="mc-detail-header">
+                    <div className="mc-detail-title-icon">
+                      {(() => {
+                        const Icon = categoryIcon(selected.category);
+                        return <Icon size={29} />;
+                      })()}
+                    </div>
+                    <div className="mc-detail-title">
+                      <h2>{selected.title || "Untitled complaint"}</h2>
+                      <span>#{String(getId(selected) || "").slice(-12).toUpperCase()}</span>
+                      <small>Submitted on {getDateTime(selected.createdAt || selected.created_at || selected.date)}</small>
+                    </div>
+                    <StatusBadge status={selectedStatus} />
+                  </div>
+
+                  <div className="mc-tabs" role="tablist">
+                    {[
+                      { label: "Tracking", icon: Activity },
+                      { label: "Details", icon: FileText },
+                      { label: "Updates", icon: Flag },
+                      { label: "Feedback", icon: MessageSquare }
+                    ].map(({ label, icon: Icon }) => (
+                      <button
+                        key={label}
+                        role="tab"
+                        aria-selected={activeTab === label}
+                        className={activeTab === label ? "mc-tab mc-tab-active" : "mc-tab"}
+                        onClick={() => selectTab(label)}
+                      >
+                        <Icon size={16} /> {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {activeTab === "Tracking" && (
+                    <>
+                      <div className="mc-timeline">
+                        {[
+                          { label: "Submitted", icon: Check, date: getDateTime(selected.createdAt || selected.created_at || selected.date), description: "Your complaint has been submitted." },
+                          { label: "In Progress", icon: Settings, date: selectedStatus === "In Progress" ? getDateTime(selected.updatedAt || selected.updated_at) : "Waiting for action", description: "The concerned team is working on the issue." },
+                          { label: "Resolved", icon: CheckCircle2, date: selectedStatus === "Resolved" || selectedStatus === "Closed" ? getDateTime(selected.updatedAt || selected.updated_at) : "Pending", description: "The issue has been marked as resolved." },
+                          { label: "Closed", icon: ShieldCheck, date: selectedStatus === "Closed" ? getDateTime(selected.updatedAt || selected.updated_at) : "Pending", description: "The complaint process is complete." }
+                        ].map((step, index) => {
+                          const currentIndex = selectedStatus === "Pending" ? 0 : selectedStatus === "In Progress" ? 1 : selectedStatus === "Resolved" ? 2 : selectedStatus === "Closed" ? 3 : 0;
+                          const Icon = step.icon;
+                          return (
+                            <div className={`mc-timeline-step ${index < currentIndex ? "mc-step-done" : ""} ${index === currentIndex ? "mc-step-current" : ""}`} key={step.label}>
+                              <div className="mc-step-marker"><Icon size={17} /></div>
+                              <strong>{step.label}</strong>
+                              <span>{step.date}</span>
+                              <p>{step.description}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mc-info-grid">
+                        <div className="mc-details-card">
+                          <h3>Complaint Details</h3>
+                          <div className="mc-info-row"><FileText size={17} /><div><small>Category</small><strong>{selected.category || "General"}</strong></div></div>
+                          <div className="mc-info-row"><MapPin size={17} /><div><small>Location</small><strong>{selected.location || "Not specified"}</strong></div></div>
+                          <div className="mc-info-row mc-description-row"><FileText size={17} /><div><small>Description</small><p>{selected.description || "No description was provided."}</p></div></div>
+                        </div>
+                        <div className="mc-meta-card">
+                          <div className="mc-info-row"><Flag size={17} /><div><small>Priority Level</small><strong>{selected.priority || "Medium"}</strong></div></div>
+                          <div className="mc-info-row"><UserRound size={17} /><div><small>Assigned To</small><strong>{selected.assignedTo || selected.assigned_to || "Support Team"}</strong></div></div>
+                          <div className="mc-info-row"><CalendarDays size={17} /><div><small>Last Updated</small><strong>{getDateTime(selected.updatedAt || selected.updated_at || selected.createdAt || selected.created_at)}</strong></div></div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {activeTab === "Details" && (
+                    <div className="mc-tab-content">
+                      <h3>Full complaint information</h3>
+                      <p><strong>Title:</strong> {selected.title || "Untitled complaint"}</p>
+                      <p><strong>Complaint ID:</strong> {getId(selected)}</p>
+                      <p><strong>Category:</strong> {selected.category || "General"}</p>
+                      <p><strong>Location:</strong> {selected.location || "Not specified"}</p>
+                      <p><strong>Status:</strong> {selectedStatus}</p>
+                      <p><strong>Description:</strong> {selected.description || "No description provided."}</p>
+                      <p><strong>Submitted:</strong> {getDateTime(selected.createdAt || selected.created_at || selected.date)}</p>
+                    </div>
+                  )}
+
+                  {activeTab === "Updates" && (
+                    <div className="mc-tab-content">
+                      <h3><Activity size={19} /> Status updates</h3>
+                      <div className="mc-update-entry">
+                        <span className="mc-update-dot" />
+                        <div><strong>Current status: {selectedStatus}</strong><p>{selectedStatus === "Pending" ? "Your complaint is awaiting action." : selectedStatus === "In Progress" ? "The concerned team is working on your complaint." : "Your complaint status has been updated."}</p><small>{getDateTime(selected.updatedAt || selected.updated_at || selected.createdAt || selected.created_at)}</small></div>
+                      </div>
+                      <p className="mc-muted-note">Only updates saved by your backend can be shown here.</p>
+                    </div>
+                  )}
+
+                  {activeTab === "Feedback" && (
+                    <div className="mc-tab-content">
+                      <h3><MessageSquare size={19} /> Feedback about this complaint</h3>
+                      <p>Share your experience with the complaint handling process.</p>
+                      <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="Write your feedback here..." rows={5} />
+                      <button className="mc-primary-button" onClick={submitFeedback}>Submit Feedback</button>
+                    </div>
+                  )}
+
+                  <div className="mc-actions">
+                    <button className="mc-primary-button" onClick={() => navigate("/feedback")}>
+                      <MessageSquare size={17} /> Add Feedback
+                    </button>
+                    <button className="mc-secondary-button" onClick={refresh} disabled={refreshing}>
+                      <RefreshCw className={refreshing ? "mc-spin" : ""} size={17} /> Refresh Status
+                    </button>
+                    <div className="mc-delete-wrap">
+                      <button
+                        className={`mc-delete-button ${!canDelete ? "mc-delete-disabled" : ""}`}
+                        onClick={deleteComplaint}
+                        disabled={deleting}
+                        title={canDelete ? "Delete pending complaint" : `Cannot delete: status is ${selectedStatus}`}
+                      >
+                        {deleting ? <LoaderCircle className="mc-spin" size={17} /> : <Trash2 size={17} />}
+                        Delete Complaint
+                      </button>
+                      <small>
+                        {canDelete
+                          ? "Available while status is Pending"
+                          : `Current status: ${selectedStatus}. This complaint cannot be deleted.`}
+                      </small>
+                    </div>
+                  </div>
+                </>
               )}
-            </aside>
+            </div>
           </section>
 
-          <div className="mc-bottom-note">
-            <Sparkles size={20} />
-            <span>Together, we can build a cleaner, safer and more vibrant campus.</span>
-            <span className="mc-note-status"><Building2 size={15} /> Campus support, made simple</span>
-          </div>
-
-          <footer className="mc-footer">
-            <span>© {new Date().getFullYear()} SmartCampus. All Rights Reserved.</span>
-            <span>Submitted by <strong>Ankit Kumar</strong> &nbsp; | &nbsp; All rights reserved by SmartCampus</span>
+          <footer className="mc-page-footer">
+            <span>© SmartCampus Complaint Management System</span>
+            <span>Helping make campus life better <Lightbulb size={14} /></span>
           </footer>
         </div>
       </main>
-
-      {selectedComplaint && (
-        <div
-          className="mc-modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setSelectedComplaint(null);
-          }}
-        >
-          <section className="mc-modal" role="dialog" aria-modal="true" aria-labelledby="mc-modal-title">
-            <div className="mc-modal-heading">
-              <div>
-                <span className="mc-eyebrow">COMPLAINT DETAILS</span>
-                <h2 id="mc-modal-title">{selectedComplaint.title}</h2>
-              </div>
-              <button type="button" onClick={() => setSelectedComplaint(null)} aria-label="Close details">
-                <X size={20} />
-              </button>
-            </div>
-            <ComplaintDetails complaint={selectedComplaint} onClose={() => setSelectedComplaint(null)} />
-          </section>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ComplaintDetails({ complaint, onClose }) {
-  const steps = ["Pending", "In Progress", "Resolved"];
-  const currentStep = steps.indexOf(complaint.status);
-
-  return (
-    <div className="mc-detail-content">
-      <div className="mc-detail-title-row">
-        <span className="mc-detail-category-icon">
-          {(() => {
-            const Icon = getCategoryIcon(complaint.category);
-            return <Icon size={22} />;
-          })()}
-        </span>
-        <div className="mc-detail-title">
-          <strong>{complaint.title}</strong>
-          <small>ID: {complaint._id}</small>
-        </div>
-        <StatusBadge status={complaint.status} />
-      </div>
-
-      <div className="mc-detail-tabs">
-        <span className="selected">Overview</span>
-        <span>Progress</span>
-      </div>
-
-      <div className="mc-detail-grid">
-        <div><span>Category</span><strong>{complaint.category}</strong></div>
-        <div><span>Location</span><strong>{complaint.location}</strong></div>
-        <div><span>Date Submitted</span><strong>{formatDate(complaint.createdAt)}</strong></div>
-        <div><span>Last Updated</span><strong>{formatDate(complaint.updatedAt)}</strong></div>
-      </div>
-
-      <div className="mc-description">
-        <h3>Description</h3>
-        <p>{complaint.description || "No description provided."}</p>
-      </div>
-
-      <div className="mc-progress-section">
-        <h3>Complaint Progress</h3>
-        <div className="mc-progress-steps">
-          {steps.map((step, index) => (
-            <div className={`mc-progress-step ${index <= currentStep ? "completed" : ""}`} key={step}>
-              <span>{index < currentStep ? <CheckCircle2 size={15} /> : index + 1}</span>
-              <small>{step}</small>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mc-detail-notice">
-        <AlertCircle size={17} />
-        Your complaint status is updated by campus administration.
-      </div>
-
-      <button type="button" className="mc-close-details" onClick={onClose}>
-        Close Details
-      </button>
     </div>
   );
 }

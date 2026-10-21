@@ -24,7 +24,7 @@ const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Submit Complaint", href: "/complaints", icon: FilePlus2 },
   { label: "My Complaints", href: "/my-complaints", icon: ClipboardList },
- { label: "Complaint Tracking", path: "/complaint-tracking", icon: Activity },
+
   { label: "Feedback", href: "/feedback", icon: MessageSquare },
   { label: "Profile / Sign in", href: "/login", icon: UserRound },
 ];

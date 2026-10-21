@@ -62,5 +62,47 @@ router.get("/", async (req, res) => {
     });
   }
 });
+// delete pending complaint
+const mongoose = require("mongoose");
+
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "Invalid complaint ID",
+      });
+    }
+
+    const complaint = await Complaint.findById(id);
+
+    if (!complaint) {
+      return res.status(404).json({
+        message: "Complaint not found",
+      });
+    }
+
+    const status = String(complaint.status || "Pending").trim().toLowerCase();
+
+    if (status !== "pending") {
+      return res.status(403).json({
+        message: `This complaint is currently "${complaint.status}". Only Pending complaints can be deleted.`,
+      });
+    }
+
+    await Complaint.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      message: "Complaint deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete complaint error:", error);
+
+    return res.status(500).json({
+      message: "Server error while deleting complaint",
+    });
+  }
+});
 
 module.exports = router;

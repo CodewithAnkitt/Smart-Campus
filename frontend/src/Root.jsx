@@ -5,7 +5,7 @@ import Auth from "./Auth";
 import Complaints from "./Complaints";
 import Dashboard from "./Dashboard";
 import MyComplaints from "./MyComplaints";
-import ComplaintTracking from "./ComplaintTracking";
+import Feedback from "./Feedback";
 export default function Root() {
   return (
     <BrowserRouter>
@@ -17,10 +17,7 @@ export default function Root() {
         <Route path="/complaints" element={<Complaints />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/my-complaints" element={<MyComplaints />} />
-      <Route
-  path="/complaint-tracking"
-  element={<ComplaintTracking />}
-/>
+        <Route path="/feedback" element={<Feedback />} />
       </Routes>
     </BrowserRouter>
   );
