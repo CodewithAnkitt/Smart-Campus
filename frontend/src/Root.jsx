@@ -1,7 +1,7 @@
 
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "./App";
-import Auth from "./Auth";
+import Login from "./Login";
 import Complaints from "./Complaints";
 import Dashboard from "./Dashboard";
 import MyComplaints from "./MyComplaints";
@@ -12,8 +12,8 @@ export default function Root() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Auth />} />
-        <Route path="/register" element={<Auth />} />
+       <Route path="/login" element={<Login />} />
+       
         <Route path="*" element={<Home />} />
         <Route path="/complaints" element={<Complaints />} />
         <Route path="/dashboard" element={<Dashboard />} />
