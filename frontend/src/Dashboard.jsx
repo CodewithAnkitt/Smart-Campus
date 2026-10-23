@@ -103,20 +103,49 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [period, setPeriod] = useState("7");
+  // Get the logged-in user's details
+  const user = JSON.parse(localStorage.getItem("user") || "null");
 
-  async function loadComplaints() {
-    setLoading(true);
-    setError("");
+  const userName = user?.name || "Student";
+  const userRole =
+    user?.role === "faculty" ? "Faculty" : "Student";
+  
+async function loadComplaints() {
+  setLoading(true);
+  setError("");
 
-    try {
-      const response = await axios.get(API_URL);
-      setComplaints(response.data.complaints || []);
-    } catch {
-      setError("Couldn't load complaints. Check that the backend and MongoDB are running.");
-    } finally {
-      setLoading(false);
+  try {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      window.location.href = "/login";
+      return;
     }
+
+    const response = await axios.get(API_URL, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    setComplaints(response.data.complaints || []);
+  } catch (error) {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+      return;
+    }
+
+    setError(
+      error.response?.data?.message ||
+      "Couldn't load complaints. Check that the backend and MongoDB are running."
+    );
+  } finally {
+    setLoading(false);
   }
+}
+
 
   useEffect(() => {
     loadComplaints();
@@ -254,14 +283,7 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
           
         </nav>
 
-        <div className="sc-help-card">
-          <span className="sc-help-icon"><Headphones size={25} /></span>
-          <h3>Need Help?</h3>
-          <p>Have a question? Contact campus support.</p>
-          <a href="/#features" className="sc-help-link">
-            Contact Support <ArrowRight size={16} />
-          </a>
-        </div>
+        
       </aside>
 
       <main className="sc-main">
@@ -311,13 +333,17 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
               <span />
             </button>
             <div className="sc-profile">
-              <span className="sc-avatar">S</span>
-              <span className="sc-profile-copy">
-                <strong>Student Portal</strong>
-                <small>SmartCampus user</small>
-              </span>
-              <ChevronDown size={17} />
-            </div>
+  <span className="sc-avatar">
+    {userName.charAt(0).toUpperCase()}
+  </span>
+
+  <span className="sc-profile-copy">
+    <strong>{userName}</strong>
+    <small>{userRole}</small>
+  </span>
+
+  <ChevronDown size={17} />
+</div>
           </div>
         </header>
 
@@ -326,15 +352,18 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
             <div className="sc-hero-copy">
               <span className="sc-eyebrow"><Sparkles size={14} /> YOUR CAMPUS, YOUR VOICE</span>
               <p className="sc-greeting">Welcome back,</p>
-              <h1>Student <span>👋</span></h1>
-              <p className="sc-hero-description">
-                Report, track, and help us keep our campus better.
-              </p>
+              <h1>
+  {userRole} <span>👋</span>
+</h1>
+
+<p className="sc-hero-description">
+  Welcome, {userName}! Report, track, and help us keep our campus better.
+</p>
               <div className="sc-hero-actions">
                 <a href="/complaints" className="sc-primary-button">
                   <FilePlus2 size={17} /> Submit a Complaint
                 </a>
-                <a href="/complaints" className="sc-secondary-button">
+                <a href="/my-complaints" className="sc-secondary-button">
                   <ClipboardList size={17} /> View Complaints
                 </a>
               </div>

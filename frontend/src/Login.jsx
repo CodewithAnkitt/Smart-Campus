@@ -1,4 +1,4 @@
-
+import axios from "axios";
 import { useState } from "react";
 import {
   GraduationCap,
@@ -56,26 +56,115 @@ export default function Login() {
     }));
   };
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    setMessage("Login UI is ready. Authentication API is not connected yet.");
-  };
+  
 
-  const handleRegister = (e) => {
-    e.preventDefault();
+const handleLogin = async (e) => {
+  e.preventDefault();
+  setMessage("");
 
-    if (registerData.password !== registerData.confirmPassword) {
-      setMessage("Passwords do not match.");
+  try {
+    const response = await axios.post(
+      "http://localhost:5000/api/auth/login",
+      {
+        email: loginData.email,
+        password: loginData.password,
+      }
+    );
+
+    const { token, user } = response.data;
+
+    // Check that the server returned valid login details
+    if (!token || !user?.id || !user?.role) {
+      setMessage("Invalid login response from server. Please try again.");
       return;
     }
 
-    if (!registerData.agree) {
-      setMessage("Please accept the Terms & Conditions.");
+    // Save authentication token and user details
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(user));
+
+    // Redirect after successful login
+    window.location.href = "/dashboard";
+  } catch (error) {
+    setMessage(
+      error.response?.data?.message ||
+        error.message ||
+        "Login failed. Please check your credentials and backend."
+    );
+  }
+};
+
+const handleRegister = async (e) => {
+  e.preventDefault();
+  setMessage("");
+
+  if (registerData.password !== registerData.confirmPassword) {
+    setMessage("Passwords do not match.");
+    return;
+  }
+
+  if (!registerData.agree) {
+    setMessage("Please accept the Terms & Conditions.");
+    return;
+  }
+
+  try {
+    const response = await axios.post(
+      "http://localhost:5000/api/auth/register",
+      {
+        name: registerData.name,
+        email: registerData.email,
+        phone: registerData.phone,
+        role: registerData.role,
+        password: registerData.password,
+        confirmPassword: registerData.confirmPassword,
+      }
+    );
+
+    // Registration succeeded; do not log the user in automatically
+    if (!response.data.user?.id || !response.data.token) {
+      setMessage(
+        "Account created, but the server returned incomplete details."
+      );
       return;
     }
 
-    setMessage("Registration UI is ready. Registration API is not connected yet.");
-  };
+    // Clear any stored session so the user must log in
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    // Show success message and switch to login form
+    setRegisterData({
+      name: "",
+      email: "",
+      phone: "",
+      role: "",
+      password: "",
+      confirmPassword: "",
+      agree: true,
+    });
+
+    setLoginData((prev) => ({
+      ...prev,
+      email: registerData.email,
+      password: "",
+    }));
+
+    setMode("login");
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+    setMessage("Registration successful! Please log in with your new account.");
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (error) {
+    setMessage(
+      error.response?.data?.message ||
+        error.message ||
+        "Registration failed. Please check whether the backend is running."
+    );
+  }
+};
+
 
   const toggleMode = (nextMode) => {
     setMode(nextMode);

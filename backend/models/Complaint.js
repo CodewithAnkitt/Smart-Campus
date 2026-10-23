@@ -26,7 +26,7 @@ const complaintSchema = new mongoose.Schema(
         "Cleanliness",
         "Internet",
         "Classroom",
-        "Other",
+        "Faculty",
       ],
     },
 
@@ -42,10 +42,19 @@ const complaintSchema = new mongoose.Schema(
       enum: ["Pending", "In Progress", "Resolved"],
       default: "Pending",
     },
+
+    submittedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-module.exports = mongoose.model("Complaint", complaintSchema);
+module.exports =
+  mongoose.models.Complaint ||
+  mongoose.model("Complaint", complaintSchema);

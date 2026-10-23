@@ -1,13 +1,36 @@
-import { Activity } from "lucide-react";
+
 import { useEffect, useState } from "react";
 import axios from "axios";
 import {
-  LayoutDashboard, FilePlus2, ClipboardList, BookOpen, Megaphone,
-  MessageSquare, UserRound, GraduationCap, Menu, X, ArrowLeft,
-  Bell, ChevronDown, Send, ShieldCheck, Clock3, CheckCircle2,
-  Lightbulb, Target, MapPin, FileText, Wifi, Zap, Droplets,
-  Sparkles, UploadCloud, Search, ChartNoAxesColumnIncreasing,
-  RefreshCw, Paperclip, Trash2, Info
+  LayoutDashboard,
+  FilePlus2,
+  ClipboardList,
+  BookOpen,
+  MessageSquare,
+  UserRound,
+  GraduationCap,
+  Menu,
+  X,
+  Bell,
+  ChevronDown,
+  Send,
+  Clock3,
+  CheckCircle2,
+  Lightbulb,
+  Target,
+  MapPin,
+  FileText,
+  Wifi,
+  Zap,
+  Droplets,
+  Sparkles,
+  UploadCloud,
+  Search,
+  ChartNoAxesColumnIncreasing,
+  RefreshCw,
+  Paperclip,
+  Trash2,
+  Info,
 } from "lucide-react";
 import "./Complaints.css";
 
@@ -24,9 +47,8 @@ const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Submit Complaint", href: "/complaints", icon: FilePlus2 },
   { label: "My Complaints", href: "/my-complaints", icon: ClipboardList },
-
   { label: "Feedback", href: "/feedback", icon: MessageSquare },
-  { label: "Profile ", href: "/profile", icon: UserRound },
+  { label: "Profile", href: "/profile", icon: UserRound },
 ];
 
 const categories = [
@@ -35,13 +57,25 @@ const categories = [
   { name: "Cleanliness", icon: Sparkles },
   { name: "Internet", icon: Wifi },
   { name: "Classroom", icon: BookOpen },
-  { name: "Faculty", icon: UserRound },
-  { name: "Other", icon: MessageSquare },
+  { name: "Faculty", icon: MessageSquare },
 ];
 
 function StatusBadge({ status = "Pending" }) {
   const normalized = String(status).toLowerCase().replace(/\s+/g, "-");
-  return <span className={`cp-status cp-status-${normalized}`}>{status}</span>;
+
+  return (
+    <span className={`cp-status cp-status-${normalized}`}>
+      {status}
+    </span>
+  );
+}
+
+function readStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    return null;
+  }
 }
 
 export default function Complaints() {
@@ -55,19 +89,59 @@ export default function Complaints() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [priority, setPriority] = useState("Medium");
   const [attachment, setAttachment] = useState(null);
+  const [currentUser, setCurrentUser] = useState(readStoredUser);
 
+  // Read the current authentication token for protected API requests.
+  function getAuthHeaders() {
+    const token = localStorage.getItem("token");
+
+    return token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+  }
+
+  function handleAuthError(status) {
+    if (status === 401 || status === 403) {
+      setError("Your session has expired. Please log in again.");
+      return true;
+    }
+
+    return false;
+  }
+
+  // Load complaints belonging to the logged-in user.
   async function loadComplaints() {
     setLoading(true);
+    setError("");
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setComplaints([]);
+      setLoading(false);
+      setError("Please log in to view and submit complaints.");
+      return;
+    }
+
     try {
-      const response = await axios.get(API_URL);
+      const response = await axios.get(API_URL, {
+        headers: getAuthHeaders(),
+      });
+
       setComplaints(
         Array.isArray(response.data.complaints)
           ? response.data.complaints
           : []
       );
-      setError("");
-    } catch {
-      setError("Could not load complaints. Check that your backend is running.");
+
+      setCurrentUser(readStoredUser());
+    } catch (err) {
+      if (!handleAuthError(err.response?.status)) {
+        setError(
+          err.response?.data?.message ||
+            "Could not load complaints. Check that your backend is running."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -78,17 +152,25 @@ export default function Complaints() {
   }, []);
 
   function handleChange(event) {
+    const { name, value } = event.target;
+
     setForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value,
+      [name]: value,
     }));
   }
 
   function handleAttachment(event) {
     const file = event.target.files?.[0];
+
     if (!file) return;
 
-    const allowed = ["image/png", "image/jpeg", "application/pdf"];
+    const allowed = [
+      "image/png",
+      "image/jpeg",
+      "application/pdf",
+    ];
+
     if (!allowed.includes(file.type)) {
       setError("Please choose a PNG, JPG, or PDF file.");
       event.target.value = "";
@@ -110,33 +192,58 @@ export default function Complaints() {
     setMessage("");
     setError("");
 
-    if (!form.title.trim() || !form.location.trim() || !form.description.trim()) {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError("Please log in before submitting a complaint.");
+      return;
+    }
+
+    if (
+      !form.title.trim() ||
+      !form.description.trim() ||
+      !form.location.trim()
+    ) {
       setError("Please complete all required fields.");
       return;
     }
 
     setSubmitting(true);
-    try {
-      // The current backend accepts these four fields only.
-      // Priority and attachment are UI-only until the backend is upgraded.
-      const response = await axios.post(API_URL, {
-        title: form.title.trim(),
-        description: form.description.trim(),
-        category: form.category,
-        location: form.location.trim(),
-      });
 
-      setMessage(response.data.message || "Your complaint was submitted successfully.");
+    try {
+      const response = await axios.post(
+        API_URL,
+        {
+          title: form.title.trim(),
+          description: form.description.trim(),
+          category: form.category,
+          location: form.location.trim(),
+        },
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+
+      setMessage(
+        response.data.message ||
+          "Your complaint was submitted successfully."
+      );
+
       setForm(initialForm);
       setPriority("Medium");
       setAttachment(null);
+
       event.target.reset();
+
+      // Refresh the list after successful submission.
       await loadComplaints();
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Unable to submit your complaint. Please try again."
-      );
+      if (!handleAuthError(err.response?.status)) {
+        setError(
+          err.response?.data?.message ||
+            "Unable to submit your complaint. Please try again."
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -154,6 +261,24 @@ export default function Complaints() {
     setMobileOpen(false);
   }
 
+  function resetForm() {
+    setForm(initialForm);
+    setPriority("Medium");
+    setAttachment(null);
+    setMessage("");
+    setError("");
+
+    const fileInput = document.getElementById("attachment");
+    if (fileInput) fileInput.value = "";
+  }
+
+  const displayName = currentUser?.name || "User";
+
+  const displayRole = currentUser?.role
+    ? currentUser.role.charAt(0).toUpperCase() +
+      currentUser.role.slice(1)
+    : "SmartCampus user";
+
   return (
     <div className={`cp-app ${sidebarCollapsed ? "cp-collapsed" : ""}`}>
       {mobileOpen && (
@@ -165,15 +290,23 @@ export default function Complaints() {
         />
       )}
 
-      <aside className={`cp-sidebar ${mobileOpen ? "cp-sidebar-open" : ""}`}>
+      <aside
+        className={`cp-sidebar ${
+          mobileOpen ? "cp-sidebar-open" : ""
+        }`}
+      >
         <div className="cp-brand-row">
           <a href="/dashboard" className="cp-brand">
-            <span className="cp-brand-icon"><GraduationCap size={27} /></span>
+            <span className="cp-brand-icon">
+              <GraduationCap size={27} />
+            </span>
+
             <span className="cp-brand-copy">
               <strong>SmartCampus</strong>
               <small>Campus Complaint System</small>
             </span>
           </a>
+
           <button
             className="cp-mobile-close"
             type="button"
@@ -190,7 +323,9 @@ export default function Complaints() {
               key={label}
               href={href}
               title={sidebarCollapsed ? label : undefined}
-              className={`cp-nav-link ${label === "Submit Complaint" ? "active" : ""}`}
+              className={`cp-nav-link ${
+                label === "Submit Complaint" ? "active" : ""
+              }`}
               onClick={closeMobileSidebar}
             >
               <Icon size={21} />
@@ -199,14 +334,7 @@ export default function Complaints() {
           ))}
         </nav>
 
-        <div className="cp-help-card">
-          <div className="cp-help-icon"><MessageSquare size={28} /></div>
-          <h3>Need Help?</h3>
-          <p>Have a question? Contact campus support.</p>
-          <a href="/feedback" className="cp-help-button">
-            Contact Support <span>→</span>
-          </a>
-        </div>
+        
       </aside>
 
       <main className="cp-main">
@@ -214,7 +342,7 @@ export default function Complaints() {
           <button
             className="cp-menu-button"
             type="button"
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label="Toggle sidebar"
             aria-expanded={!sidebarCollapsed}
             onClick={toggleSidebar}
           >
@@ -222,20 +350,38 @@ export default function Complaints() {
           </button>
 
           <div className="cp-breadcrumb">
-            <span>Student Portal</span><span className="cp-slash">/</span>
+            <span>{displayRole} Portal</span>
+            <span className="cp-slash">/</span>
             <strong>Submit Complaint</strong>
           </div>
 
           <div className="cp-topbar-right">
-            <button className="cp-bell" type="button" aria-label="Notifications">
-              <Bell size={21} /><i />
+            <button
+              className="cp-bell"
+              type="button"
+              aria-label="Notifications"
+            >
+              <Bell size={21} />
+              <i />
             </button>
-            <button className="cp-user-menu" type="button" aria-label="Student profile">
-              <span className="cp-avatar">S</span>
-              <span className="cp-user-copy">
-                <strong>Student Portal</strong>
-                <small>SmartCampus user</small>
+
+            <button
+              className="cp-user-menu"
+              type="button"
+              aria-label="Logged-in user"
+              onClick={() => {
+                window.location.href = "/profile";
+              }}
+            >
+              <span className="cp-avatar">
+                {displayName.charAt(0).toUpperCase()}
               </span>
+
+              <span className="cp-user-copy">
+                <strong>{displayName}</strong>
+                <small>{displayRole}</small>
+              </span>
+
               <ChevronDown size={17} />
             </button>
           </div>
@@ -249,29 +395,44 @@ export default function Complaints() {
               alt=""
               aria-hidden="true"
             />
+
             <div className="cp-hero-copy">
               <span className="cp-eyebrow">CAMPUS SUPPORT</span>
               <h1>Report a Campus Issue</h1>
-              <p>Help us make our campus safer, cleaner and better.</p>
+              <p>
+                Help us make our campus safer, cleaner and better.
+              </p>
             </div>
           </section>
 
           {message && (
             <div className="cp-notice cp-success" role="status">
-              <CheckCircle2 size={19} /> <span>{message}</span>
+              <CheckCircle2 size={19} />
+              <span>{message}</span>
             </div>
           )}
+
           {error && (
             <div className="cp-notice cp-error" role="alert">
-              <Info size={19} /> <span>{error}</span>
-              <button type="button" onClick={() => setError("")} aria-label="Dismiss error"><X size={16} /></button>
+              <Info size={19} />
+              <span>{error}</span>
+              <button
+                type="button"
+                onClick={() => setError("")}
+                aria-label="Dismiss error"
+              >
+                <X size={16} />
+              </button>
             </div>
           )}
 
           <section className="cp-layout">
             <div className="cp-form-card">
-              <div className="cp-card-heading">
-                <span className="cp-card-icon"><FileText size={24} /></span>
+              <div className="cp-side-heading">
+                <span className="cp-side-heading-icon">
+                  <FileText size={23} />
+                </span>
+
                 <div>
                   <h2>Complaint Information</h2>
                   <p>Tell us what happened and where.</p>
@@ -280,7 +441,10 @@ export default function Complaints() {
 
               <form onSubmit={handleSubmit}>
                 <div className="cp-field">
-                  <label htmlFor="title">Complaint Title <b>*</b></label>
+                  <label htmlFor="title">
+                    Complaint Title <b>*</b>
+                  </label>
+
                   <input
                     id="title"
                     name="title"
@@ -293,39 +457,59 @@ export default function Complaints() {
                 </div>
 
                 <div className="cp-field">
-                  <label htmlFor="category">Category <b>*</b></label>
-                  <div className="cp-select-wrap">
-                    <select
-                      id="category"
-                      name="category"
-                      value={form.category}
-                      onChange={handleChange}
-                      required
-                    >
-                      {categories.map(({ name }) => (
-                        <option key={name} value={name}>{name}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={18} />
-                  </div>
-                  <div className="cp-category-chips">
-                    {categories.slice(0, 5).map(({ name, icon: Icon }) => (
-                      <button
-                        key={name}
-                        type="button"
-                        className={form.category === name ? "selected" : ""}
-                        onClick={() => setForm((current) => ({ ...current, category: name }))}
+                  <label htmlFor="category">
+                    Category <b>*</b>
+                  </label>
+
+                  <select
+                    id="category"
+                    name="category"
+                    value={form.category}
+                    onChange={handleChange}
+                    required
+                  >
+                    {categories.map((category) => (
+                      <option
+                        key={category.name}
+                        value={category.name}
                       >
-                        <Icon size={13} /> {name}
-                      </button>
+                        {category.name}
+                      </option>
                     ))}
+                  </select>
+
+                  <div className="cp-category-chips">
+                    {categories
+                      .filter((category) => category.name !== "Faculty")
+                      .map(({ name, icon: Icon }) => (
+                        <button
+                          key={name}
+                          type="button"
+                          className={
+                            form.category === name ? "selected" : ""
+                          }
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              category: name,
+                            }))
+                          }
+                        >
+                          <Icon size={13} />
+                          {name}
+                        </button>
+                      ))}
                   </div>
                 </div>
 
                 <div className="cp-field">
-                  <label htmlFor="location">Campus Location <b>*</b></label>
+                  <label htmlFor="location">
+                    Campus Location <b>*</b>
+                  </label>
+
                   <div className="cp-input-icon">
                     <MapPin size={18} />
+
                     <input
                       id="location"
                       name="location"
@@ -339,21 +523,39 @@ export default function Complaints() {
                 </div>
 
                 <fieldset className="cp-priority-field">
-                  <legend>Priority <b>*</b></legend>
+                  <legend>
+                    Priority <b>*</b>
+                  </legend>
+
                   <div className="cp-priority-options">
                     {[
-                      { label: "Low", subtitle: "Minor issue", color: "low" },
-                      { label: "Medium", subtitle: "Needs attention", color: "medium" },
-                      { label: "High", subtitle: "Urgent issue", color: "high" },
+                      {
+                        label: "Low",
+                        subtitle: "Minor issue",
+                        color: "low",
+                      },
+                      {
+                        label: "Medium",
+                        subtitle: "Needs attention",
+                        color: "medium",
+                      },
+                      {
+                        label: "High",
+                        subtitle: "Urgent issue",
+                        color: "high",
+                      },
                     ].map((item) => (
                       <button
                         key={item.label}
                         type="button"
-                        className={`cp-priority-option ${item.color} ${priority === item.label ? "chosen" : ""}`}
+                        className={`cp-priority-option ${item.color} ${
+                          priority === item.label ? "chosen" : ""
+                        }`}
                         onClick={() => setPriority(item.label)}
                         aria-pressed={priority === item.label}
                       >
                         <span className="cp-radio-dot" />
+
                         <span className="cp-priority-copy">
                           <strong>{item.label}</strong>
                           <small>{item.subtitle}</small>
@@ -361,14 +563,21 @@ export default function Complaints() {
                       </button>
                     ))}
                   </div>
-                  <small className="cp-ui-only-note">Priority is a visual selection until backend support is added.</small>
+
+                  <small className="cp-ui-only-note">
+                    Priority is a visual selection until backend support
+                    is added.
+                  </small>
                 </fieldset>
 
                 <div className="cp-field">
                   <div className="cp-label-row">
-                    <label htmlFor="description">Description <b>*</b></label>
+                    <label htmlFor="description">
+                      Description <b>*</b>
+                    </label>
                     <small>{form.description.length}/2000</small>
                   </div>
+
                   <textarea
                     id="description"
                     name="description"
@@ -382,11 +591,17 @@ export default function Complaints() {
                 </div>
 
                 <div className="cp-field cp-attachment-field">
-                  <label htmlFor="attachment">Attach Photo / File <span>(Optional)</span></label>
+                  <label htmlFor="attachment">
+                    Attach Photo / File <span>(Optional)</span>
+                  </label>
+
                   <label className="cp-upload-box" htmlFor="attachment">
                     <UploadCloud size={27} />
-                    <strong>Drag files here or <u>browse</u></strong>
+                    <strong>
+                      Drag files here or <u>browse</u>
+                    </strong>
                     <small>PNG, JPG or PDF · Max 5 MB</small>
+
                     <input
                       id="attachment"
                       type="file"
@@ -394,40 +609,59 @@ export default function Complaints() {
                       onChange={handleAttachment}
                     />
                   </label>
+
                   {attachment && (
                     <div className="cp-file-preview">
                       <Paperclip size={16} />
                       <span>{attachment.name}</span>
-                      <small>{(attachment.size / 1024 / 1024).toFixed(2)} MB</small>
+
+                      <small>
+                        {(attachment.size / 1024 / 1024).toFixed(2)} MB
+                      </small>
+
                       <button
                         type="button"
                         aria-label="Remove attachment"
-                        onClick={() => setAttachment(null)}
+                        onClick={() => {
+                          setAttachment(null);
+                          const input = document.getElementById("attachment");
+                          if (input) input.value = "";
+                        }}
                       >
                         <Trash2 size={16} />
                       </button>
                     </div>
                   )}
-                  <small className="cp-ui-only-note">File is selected locally only; it is not uploaded to the server yet.</small>
+
+                  <small className="cp-ui-only-note">
+                    File is selected locally only; it is not uploaded
+                    to the server yet.
+                  </small>
                 </div>
 
                 <div className="cp-form-actions">
                   <button
                     type="button"
                     className="cp-cancel-button"
-                    onClick={() => {
-                      setForm(initialForm);
-                      setPriority("Medium");
-                      setAttachment(null);
-                      setMessage("");
-                      setError("");
-                    }}
+                    onClick={resetForm}
                   >
                     Cancel
                   </button>
-                  <button className="cp-submit-button" type="submit" disabled={submitting}>
-                    {submitting ? <RefreshCw className="cp-spin" size={17} /> : <Send size={17} />}
-                    {submitting ? "Submitting..." : "Submit Complaint"}
+
+                  <button
+                    className="cp-submit-button"
+                    type="submit"
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <RefreshCw className="cp-spin" size={17} />
+                    ) : (
+                      <Send size={17} />
+                    )}
+
+                    {submitting
+                      ? "Submitting..."
+                      : "Submit Complaint"}
                   </button>
                 </div>
               </form>
@@ -436,64 +670,132 @@ export default function Complaints() {
             <div className="cp-side-column">
               <section className="cp-tips-card">
                 <div className="cp-side-heading">
-                  <span className="cp-side-heading-icon"><Lightbulb size={24} /></span>
+                  <span className="cp-side-heading-icon">
+                    <Lightbulb size={24} />
+                  </span>
+
                   <div>
                     <h2>Before you submit</h2>
-                    <p>A few quick tips to help us resolve your issue faster.</p>
+                    <p>
+                      A few quick tips to help us resolve your issue faster.
+                    </p>
                   </div>
                 </div>
 
                 <div className="cp-tip cp-tip-blue">
-                  <span className="cp-tip-art"><Target size={25} /></span>
-                  <div><strong>Choose the correct category</strong><p>Select the category that best matches your issue.</p></div>
+                  <span className="cp-tip-art">
+                    <Target size={25} />
+                  </span>
+
+                  <div>
+                    <strong>Choose the correct category</strong>
+                    <p>
+                      Select the category that best matches your issue.
+                    </p>
+                  </div>
                 </div>
+
                 <div className="cp-tip cp-tip-orange">
-                  <span className="cp-tip-art"><MapPin size={25} /></span>
-                  <div><strong>Add exact location</strong><p>Mention building, floor, room or nearby landmark.</p></div>
+                  <span className="cp-tip-art">
+                    <MapPin size={25} />
+                  </span>
+
+                  <div>
+                    <strong>Add exact location</strong>
+                    <p>
+                      Mention building, floor, room or nearby landmark.
+                    </p>
+                  </div>
                 </div>
+
                 <div className="cp-tip cp-tip-green">
-                  <span className="cp-tip-art"><FileText size={24} /></span>
-                  <div><strong>Explain clearly</strong><p>Provide a detailed description to help us understand the issue.</p></div>
+                  <span className="cp-tip-art">
+                    <FileText size={24} />
+                  </span>
+
+                  <div>
+                    <strong>Explain clearly</strong>
+                    <p>
+                      Provide a detailed description to help us understand
+                      the issue.
+                    </p>
+                  </div>
                 </div>
               </section>
 
               <section className="cp-journey-card">
                 <div className="cp-side-heading">
-                  <span className="cp-side-heading-icon"><ChartNoAxesColumnIncreasing size={24} /></span>
+                  <span className="cp-side-heading-icon">
+                    <ChartNoAxesColumnIncreasing size={24} />
+                  </span>
+
                   <div>
                     <h2>Your report journey</h2>
-                    <p>Here's what happens after you submit a complaint.</p>
+                    <p>
+                      Here's what happens after you submit a complaint.
+                    </p>
                   </div>
                 </div>
 
                 <div className="cp-journey">
                   <div className="cp-journey-step active">
-                    <span className="cp-journey-symbol"><Send size={21} /></span>
-                    <div><strong>1. Submitted</strong><p>Your complaint is received successfully.</p></div>
+                    <span className="cp-journey-symbol">
+                      <Send size={21} />
+                    </span>
+
+                    <div>
+                      <strong>1. Submitted</strong>
+                      <p>Your complaint is received successfully.</p>
+                    </div>
                   </div>
+
                   <div className="cp-journey-step">
-                    <span className="cp-journey-symbol"><Search size={22} /></span>
-                    <div><strong>2. Under Review</strong><p>Our team will review and take necessary action.</p></div>
+                    <span className="cp-journey-symbol">
+                      <Search size={22} />
+                    </span>
+
+                    <div>
+                      <strong>2. Under Review</strong>
+                      <p>
+                        Our team will review and take necessary action.
+                      </p>
+                    </div>
                   </div>
+
                   <div className="cp-journey-step">
-                    <span className="cp-journey-symbol"><CheckCircle2 size={22} /></span>
-                    <div><strong>3. Resolved</strong><p>You will be notified once the issue is resolved.</p></div>
+                    <span className="cp-journey-symbol">
+                      <CheckCircle2 size={22} />
+                    </span>
+
+                    <div>
+                      <strong>3. Resolved</strong>
+                      <p>
+                        You will be notified once the issue is resolved.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 <div className="cp-track-note">
                   <Info size={21} />
-                  <span>You can track updates in <a href="/my-complaints">My Complaints</a>.</span>
+                  <span>
+                    You can track updates in{" "}
+                    <a href="/my-complaints">My Complaints</a>.
+                  </span>
                 </div>
               </section>
 
               <section className="cp-recent-card">
                 <div className="cp-side-heading">
-                  <span className="cp-side-heading-icon cp-recent-icon"><ClipboardList size={22} /></span>
+                  <span className="cp-side-heading-icon cp-recent-icon">
+                    <ClipboardList size={22} />
+                  </span>
+
                   <div>
                     <h2>Recent Complaints</h2>
                     <p>Latest reports from the system</p>
                   </div>
+
                   <button
                     type="button"
                     className="cp-refresh-button"
@@ -502,28 +804,51 @@ export default function Complaints() {
                     aria-label="Refresh complaints"
                     title="Refresh complaints"
                   >
-                    <RefreshCw size={17} className={loading ? "cp-spin" : ""} />
+                    <RefreshCw
+                      size={17}
+                      className={loading ? "cp-spin" : ""}
+                    />
                   </button>
                 </div>
 
                 {loading ? (
-                  <div className="cp-empty"><RefreshCw className="cp-spin" size={21} /><p>Loading complaints...</p></div>
+                  <div className="cp-empty">
+                    <RefreshCw className="cp-spin" size={21} />
+                    <p>Loading complaints...</p>
+                  </div>
                 ) : complaints.length === 0 ? (
-                  <div className="cp-empty"><ClipboardList size={29} /><p>No complaints yet</p></div>
+                  <div className="cp-empty">
+                    <ClipboardList size={29} />
+                    <p>No complaints yet</p>
+                  </div>
                 ) : (
                   <div className="cp-recent-list">
                     {complaints.slice(0, 3).map((complaint) => (
-                      <article key={complaint._id} className="cp-recent-item">
+                      <article
+                        key={complaint._id}
+                        className="cp-recent-item"
+                      >
                         <div className="cp-recent-item-top">
                           <strong>{complaint.title}</strong>
                           <StatusBadge status={complaint.status} />
                         </div>
-                        <span className="cp-recent-category">{complaint.category}</span>
+
+                        <span className="cp-recent-category">
+                          {complaint.category}
+                        </span>
+
                         <p>{complaint.description}</p>
-                        <small><MapPin size={12} /> {complaint.location}</small>
+
+                        <small>
+                          <MapPin size={12} />
+                          {complaint.location}
+                        </small>
                       </article>
                     ))}
-                    <a className="cp-view-all" href="/my-complaints">View all complaints →</a>
+
+                    <a className="cp-view-all" href="/my-complaints">
+                      View all complaints →
+                    </a>
                   </div>
                 )}
               </section>
@@ -531,8 +856,10 @@ export default function Complaints() {
           </section>
 
           <footer className="cp-footer">
-            <span>© {new Date().getFullYear()} SmartCampus. All rights reserved.</span>
-            <span> &nbsp; | &nbsp; All rights reserved by SmartCampus</span>
+            <span>
+              © {new Date().getFullYear()} SmartCampus. All rights reserved.
+            </span>
+            <span> | All rights reserved by SmartCampus</span>
           </footer>
         </div>
       </main>
