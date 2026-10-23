@@ -5,7 +5,7 @@ const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const profileRoutes = require("./routes/profileRoutes");
 dotenv.config();
-
+const adminRoutes = require("./routes/adminRoutes");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -28,6 +28,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/complaints", complaintRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/admin", adminRoutes);
 // Health check
 app.get("/api/health", (req, res) => {
   res.status(200).json({

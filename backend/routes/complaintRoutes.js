@@ -8,12 +8,15 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 router.use(authMiddleware);
 
-// GET: Fetch only the logged-in user's complaints
+// GET: Students/faculty see their own complaints; admin sees all
 router.get("/", async (req, res) => {
   try {
-    const complaints = await Complaint.find({
-      submittedBy: req.user.userId,
-    })
+    const filter =
+      req.user.role === "admin"
+        ? {}
+        : { submittedBy: req.user.userId };
+
+    const complaints = await Complaint.find(filter)
       .populate("submittedBy", "name email role")
       .sort({ createdAt: -1 })
       .lean();
@@ -25,7 +28,6 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Get complaints error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Unable to load complaints.",
@@ -36,8 +38,7 @@ router.get("/", async (req, res) => {
 // POST: Submit a complaint
 router.post("/", async (req, res) => {
   try {
-    const { title, description, category, location } =
-      req.body || {};
+    const { title, description, category, location } = req.body || {};
 
     if (
       !title?.trim() ||
@@ -47,8 +48,7 @@ router.post("/", async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Title, description, category, and location are required.",
+        message: "Title, description, category, and location are required.",
       });
     }
 
@@ -83,7 +83,6 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Submit complaint error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Unable to submit complaint.",
@@ -91,7 +90,63 @@ router.post("/", async (req, res) => {
   }
 });
 
-// DELETE: Only the complaint owner can delete their pending complaint
+// PATCH: Admin updates complaint status
+router.patch("/:id/status", async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only administrators can update complaint status.",
+      });
+    }
+
+    const { id } = req.params;
+    const { status } = req.body || {};
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid complaint ID.",
+      });
+    }
+
+    const allowedStatuses = ["Pending", "In Progress", "Resolved"];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid complaint status.",
+      });
+    }
+
+    const complaint = await Complaint.findByIdAndUpdate(
+      id,
+      { $set: { status } },
+      { new: true, runValidators: true }
+    ).populate("submittedBy", "name email role");
+
+    if (!complaint) {
+      return res.status(404).json({
+        success: false,
+        message: "Complaint not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Complaint status updated successfully.",
+      complaint,
+    });
+  } catch (error) {
+    console.error("Update complaint status error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update complaint status.",
+    });
+  }
+});
+
+// DELETE: Only the owner can delete their own pending complaint
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -112,7 +167,6 @@ router.delete("/:id", async (req, res) => {
       });
     }
 
-    // Prevent deleting another user's complaint
     if (
       !complaint.submittedBy ||
       complaint.submittedBy.toString() !== req.user.userId
@@ -123,7 +177,6 @@ router.delete("/:id", async (req, res) => {
       });
     }
 
-    // Only pending complaints can be deleted
     if (complaint.status !== "Pending") {
       return res.status(400).json({
         success: false,
@@ -139,10 +192,9 @@ router.delete("/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Delete complaint error:", error);
-
     return res.status(500).json({
       success: false,
-      message: "Unable to delete complaints.",
+      message: "Unable to delete complaint.",
     });
   }
 });
