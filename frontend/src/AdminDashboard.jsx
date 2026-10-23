@@ -792,110 +792,322 @@ const renderComplaints = () => {
   );
 };
 
-  const renderUsers = () => (
-    <section className="admin-panel-card admin-full-table">
-      <div className="admin-card-heading">
+  
+const renderUsers = () => {
+  const users = filteredUsers;
+
+  const students = users.filter(
+    (user) => user.role?.toLowerCase() === "student"
+  ).length;
+
+  const faculty = users.filter(
+    (user) => user.role?.toLowerCase() === "faculty"
+  ).length;
+
+  return (
+    <div className="users-page">
+      <div className="users-heading">
         <div>
-          <h3>Registered Users</h3>
-          <p>Students and faculty registered with SmartCampus</p>
+          <span className="complaints-eyebrow">USER MANAGEMENT</span>
+          <h2>Campus Users</h2>
+          <p>Manage registered students and faculty members.</p>
         </div>
-        <span className="admin-count-pill">
-          {filteredUsers.length} users
-        </span>
+
+        <button
+          className="users-refresh-btn"
+          onClick={() => window.location.reload()}
+        >
+          ↻ Refresh Data
+        </button>
       </div>
 
-      {loading ? (
-        <p className="admin-demo-note">Loading users...</p>
-      ) : (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Role</th>
-                <th>Email</th>
-                <th>Joined On</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((item, index) => (
-                <tr key={item._id || item.email}>
-                  <td>
-                    <div className="admin-user-cell">
+      <div className="users-stats">
+        <article className="users-stat-card">
+          <div className="users-stat-icon users-blue">♙</div>
+          <div>
+            <p>Total Users</p>
+            <h3>{users.length}</h3>
+            <small>Registered accounts</small>
+          </div>
+        </article>
+
+        <article className="users-stat-card">
+          <div className="users-stat-icon users-purple">🎓</div>
+          <div>
+            <p>Students</p>
+            <h3>{students}</h3>
+            <small>Student accounts</small>
+          </div>
+        </article>
+
+        <article className="users-stat-card">
+          <div className="users-stat-icon users-green">♧</div>
+          <div>
+            <p>Faculty</p>
+            <h3>{faculty}</h3>
+            <small>Faculty accounts</small>
+          </div>
+        </article>
+      </div>
+
+      <section className="admin-panel-card users-table-card">
+        <div className="users-table-heading">
+          <div>
+            <h3>Registered Users</h3>
+            <p>Campus account directory</p>
+          </div>
+          <span className="users-count">{users.length} users</span>
+        </div>
+
+        <div className="users-search-wrapper">
+          <Search size={18} />
+          <input
+            type="search"
+            placeholder="Search name, email, or role..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+
+        {loading ? (
+          <div className="users-empty-state">Loading users...</div>
+        ) : (
+          <div className="users-table-scroll">
+            <table className="admin-table users-modern-table">
+              <thead>
+                <tr>
+                  <th>USER</th>
+                  <th>ROLE</th>
+                  <th>EMAIL ADDRESS</th>
+                  <th>JOINED DATE</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {users.map((user, index) => (
+                  <tr key={user._id || user.email}>
+                    <td>
+                      <div className="users-table-user">
+                        <span
+                          className={`admin-user-avatar ${getColor(index)}`}
+                        >
+                          {getInitials(user.name)}
+                        </span>
+                        <div>
+                          <strong>{user.name || "Unnamed User"}</strong>
+                          <small>
+                            ID: {user._id
+                              ? user._id.slice(-7).toUpperCase()
+                              : "N/A"}
+                          </small>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>
                       <span
-                        className={`admin-user-avatar ${getColor(index)}`}
+                        className={`users-role-badge ${
+                          user.role?.toLowerCase() || "unknown"
+                        }`}
                       >
-                        {getInitials(item.name)}
+                        <span className="users-role-dot" />
+                        {user.role || "Unknown"}
                       </span>
-                      <strong>{item.name}</strong>
-                    </div>
-                  </td>
-                  <td>
-                    <span
-                      className={`admin-role-pill ${(item.role || "").toLowerCase()}`}
-                    >
-                      {item.role}
-                    </span>
-                  </td>
-                  <td>{item.email}</td>
-                  <td>{formatDate(item.createdAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!filteredUsers.length && (
-            <p className="admin-demo-note">No users found.</p>
-          )}
-        </div>
-      )}
-    </section>
-  );
+                    </td>
 
-  const renderFeedback = () => (
-    <section className="admin-panel-card admin-full-table">
-      <div className="admin-card-heading">
-        <div>
-          <h3>Recent Feedback</h3>
-          <p>Suggestions and feedback from campus users</p>
+                    <td>
+                      <span className="users-email">
+                        {user.email || "No email available"}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span className="users-joined-date">
+                        {formatDate(user.createdAt)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {!users.length && (
+              <div className="users-empty-state">
+                <Users size={30} />
+                <h3>No users found</h3>
+                <p>Try searching with another name or email.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="users-table-footer">
+          <span>Showing {users.length} users</span>
+          <button onClick={() => setSearch("")}>Clear search</button>
         </div>
-        <span className="admin-count-pill">
-          {filteredFeedback.length} messages
-        </span>
+      </section>
+    </div>
+  );
+};
+
+
+ 
+const renderFeedback = () => {
+  const feedback = filteredFeedback;
+
+  const types = new Set(
+    feedback.map((item) => item.type || "General Feedback")
+  ).size;
+
+  return (
+    <div className="feedback-page">
+      <div className="users-heading">
+        <div>
+          <span className="complaints-eyebrow">CAMPUS VOICE</span>
+          <h2>Feedback Center</h2>
+          <p>Review suggestions and messages from your campus community.</p>
+        </div>
+
+        <button
+          className="users-refresh-btn"
+          onClick={() => window.location.reload()}
+        >
+          ↻ Refresh Data
+        </button>
       </div>
 
-      {loading ? (
-        <p className="admin-demo-note">Loading feedback...</p>
-      ) : (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Message</th>
-                <th>Type</th>
-                <th>Submitted By</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredFeedback.map((item) => (
-                <tr key={item._id}>
-                  <td>{item.title || "Feedback"}</td>
-                  <td>{item.message || "—"}</td>
-                  <td>{item.type || "General Feedback"}</td>
-                  <td>{item.user?.name || "Unknown"}</td>
-                  <td>{formatDate(item.createdAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!filteredFeedback.length && (
-            <p className="admin-demo-note">No feedback found.</p>
-          )}
+      <div className="users-stats">
+        <article className="users-stat-card">
+          <div className="users-stat-icon users-blue">
+            <MessageSquare size={23} />
+          </div>
+          <div>
+            <p>Total Feedback</p>
+            <h3>{feedback.length}</h3>
+            <small>Available messages</small>
+          </div>
+        </article>
+
+        <article className="users-stat-card">
+          <div className="users-stat-icon users-purple">▤</div>
+          <div>
+            <p>Feedback Types</p>
+            <h3>{types}</h3>
+            <small>Different categories</small>
+          </div>
+        </article>
+
+        <article className="users-stat-card">
+          <div className="users-stat-icon users-green">✓</div>
+          <div>
+            <p>Latest Submission</p>
+            <h3>{feedback.length ? formatDate(feedback[0].createdAt) : "—"}</h3>
+            <small>Most recent available record</small>
+          </div>
+        </article>
+      </div>
+
+      <section className="admin-panel-card feedback-table-card">
+        <div className="users-table-heading">
+          <div>
+            <h3>Feedback Messages</h3>
+            <p>Read comments and suggestions submitted by users.</p>
+          </div>
+          <span className="users-count">{feedback.length} messages</span>
         </div>
-      )}
-    </section>
+
+        <div className="users-search-wrapper">
+          <Search size={18} />
+          <input
+            type="search"
+            placeholder="Search title, message, type, or user..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+
+        {loading ? (
+          <div className="users-empty-state">Loading feedback...</div>
+        ) : (
+          <div className="users-table-scroll">
+            <table className="admin-table feedback-modern-table">
+              <thead>
+                <tr>
+                  <th>FEEDBACK</th>
+                  <th>TYPE</th>
+                  <th>SUBMITTED BY</th>
+                  <th>DATE</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {feedback.map((item, index) => (
+                  <tr key={item._id || `${item.title}-${index}`}>
+                    <td>
+                      <div className="feedback-message-cell">
+                        <span className={`users-stat-icon ${[
+                          "users-blue",
+                          "users-purple",
+                          "users-green",
+                        ][index % 3]}`}>
+                          <MessageSquare size={18} />
+                        </span>
+                        <div className="feedback-message-content">
+                          <strong>{item.title || "Campus Feedback"}</strong>
+                          <p>{item.message || "No message provided."}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>
+                      <span className="feedback-type-badge">
+                        {item.type || "General Feedback"}
+                      </span>
+                    </td>
+
+                    <td>
+                      <div className="users-table-user">
+                        <span
+                          className={`admin-user-avatar ${getColor(index)}`}
+                        >
+                          {getInitials(item.user?.name || "User")}
+                        </span>
+                        <div>
+                          <strong>{item.user?.name || "Unknown User"}</strong>
+                          <small>{item.user?.email || "Email unavailable"}</small>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>
+                      <span className="users-joined-date">
+                        {formatDate(item.createdAt)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {!feedback.length && (
+              <div className="users-empty-state">
+                <MessageSquare size={30} />
+                <h3>No feedback found</h3>
+                <p>Try a different search or check again later.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="users-table-footer">
+          <span>Showing {feedback.length} messages</span>
+          <button onClick={() => setSearch("")}>Clear search</button>
+        </div>
+      </section>
+    </div>
   );
+};
+
 
   const renderDashboard = () => {
     const statusSegments = [
